@@ -238,17 +238,12 @@ struct ContentView: View {
         defer { isRegistering = false }
 
         do {
-            // Use vendor identifier as external ID
-            let externalId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
-
-            let response = try await client.registerDevice(externalId: externalId)
+            // Registration handles external_id internally
+            // If 409 conflict occurs, it auto-retries with a new ID
+            let response = try await client.registerDevice()
 
             isDeviceRegistered = true
             deviceId = response.deviceId
-        } catch SignedShotAPIError.deviceAlreadyRegistered {
-            // Device was already registered - this is fine
-            isDeviceRegistered = true
-            deviceId = await client.deviceId
         } catch {
             errorMessage = error.localizedDescription
         }
