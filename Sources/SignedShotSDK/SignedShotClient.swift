@@ -62,7 +62,8 @@ public actor SignedShotClient {
         self.encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
 
-        SignedShotLogger.api.info("SignedShotClient initialized with baseURL: \(configuration.baseURL.absoluteString), publisherId: \(configuration.publisherId.prefix(8))...")
+        let pubIdPrefix = String(configuration.publisherId.prefix(8))
+        SignedShotLogger.api.info("Client initialized: \(configuration.baseURL), pub: \(pubIdPrefix)...")
     }
 
     // MARK: - Device Registration
@@ -108,7 +109,8 @@ public actor SignedShotClient {
         switch httpResponse.statusCode {
         case 201:
             let deviceResponse = try decoder.decode(DeviceCreateResponse.self, from: data)
-            SignedShotLogger.api.info("Device registered successfully with deviceId: \(deviceResponse.deviceId.prefix(8))...")
+            let deviceIdPrefix = String(deviceResponse.deviceId.prefix(8))
+            SignedShotLogger.api.info("Device registered: \(deviceIdPrefix)...")
 
             // Store token and device ID securely
             try keychain.save(deviceResponse.deviceToken, forKey: Self.deviceTokenKey)
@@ -127,7 +129,8 @@ public actor SignedShotClient {
 
         default:
             let errorMessage = try? decoder.decode(APIErrorResponse.self, from: data).detail
-            SignedShotLogger.api.error("Registration failed with status \(httpResponse.statusCode): \(errorMessage ?? "unknown")")
+            let msg = errorMessage ?? "unknown"
+            SignedShotLogger.api.error("Registration failed: \(httpResponse.statusCode) - \(msg)")
             throw SignedShotAPIError.httpError(statusCode: httpResponse.statusCode, message: errorMessage)
         }
     }
