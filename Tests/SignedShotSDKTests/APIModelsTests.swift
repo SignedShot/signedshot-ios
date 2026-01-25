@@ -137,6 +137,49 @@ final class APIModelsTests: XCTestCase {
         XCTAssertNil(config)
     }
 
+    // MARK: - Sidecar Tests
+
+    func testSidecarEncoding() throws {
+        let sidecar = Sidecar(jwt: "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.test.sig")
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(sidecar)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+        XCTAssertEqual(json?["version"] as? String, "1.0")
+
+        let captureTrust = json?["capture_trust"] as? [String: Any]
+        XCTAssertEqual(captureTrust?["jwt"] as? String, "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.test.sig")
+    }
+
+    func testSidecarDecoding() throws {
+        let json = """
+        {
+            "version": "1.0",
+            "capture_trust": {
+                "jwt": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature"
+            }
+        }
+        """
+
+        let decoder = JSONDecoder()
+        let sidecar = try decoder.decode(Sidecar.self, from: json.data(using: .utf8)!)
+
+        XCTAssertEqual(sidecar.version, "1.0")
+        XCTAssertEqual(sidecar.captureTrust.jwt, "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature")
+    }
+
+    func testSidecarGenerator() throws {
+        let generator = SidecarGenerator()
+        let jwt = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.test.signature"
+
+        let jsonString = try generator.generateString(jwt: jwt)
+
+        XCTAssertTrue(jsonString.contains("\"version\" : \"1.0\""))
+        XCTAssertTrue(jsonString.contains("\"capture_trust\""))
+        XCTAssertTrue(jsonString.contains(jwt))
+    }
+
     // MARK: - KeychainError Tests
 
     func testKeychainErrorDescriptions() {

@@ -26,6 +26,9 @@ struct ContentView: View {
     // Trust token state
     @State private var trustToken: String?
     @State private var isExchangingToken = false
+    @State private var sidecarURL: URL?
+
+    private let sidecarGenerator = SidecarGenerator()
 
     private let storage = PhotoStorage()
     private let client: SignedShotClient
@@ -291,6 +294,16 @@ struct ContentView: View {
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundColor(.gray)
                         .lineLimit(2)
+
+                    if let sidecarURL = sidecarURL {
+                        HStack {
+                            Image(systemName: "doc.badge.plus")
+                                .foregroundColor(.blue)
+                            Text(sidecarURL.lastPathComponent)
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                        }
+                    }
                 }
             }
 
@@ -298,6 +311,7 @@ struct ContentView: View {
                 lastCapturedPhoto = nil
                 savedPhotoURL = nil
                 trustToken = nil
+                sidecarURL = nil
             }
             .font(.caption)
             .foregroundColor(.blue)
@@ -402,6 +416,10 @@ struct ContentView: View {
             let response = try await client.exchangeTrustToken(nonce: session.nonce)
             trustToken = response.trustToken
             isExchangingToken = false
+
+            // Generate and save sidecar
+            let sidecarData = try sidecarGenerator.generate(jwt: response.trustToken)
+            sidecarURL = try storage.saveSidecar(sidecarData, for: url)
 
             // Clear session after successful exchange (one-time use)
             currentSession = nil
