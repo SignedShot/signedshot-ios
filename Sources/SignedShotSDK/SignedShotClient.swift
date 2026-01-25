@@ -227,6 +227,68 @@ public actor SignedShotClient {
         }
     }
 
+    // MARK: - Trust Token
+
+    /// Exchange a nonce for a signed trust token
+    /// - Parameter nonce: The nonce received from createCaptureSession
+    /// - Returns: The signed trust token (JWT)
+    /// - Throws: SignedShotAPIError if exchange fails
+    public func exchangeTrustToken(nonce: String) async throws -> TrustResponse {
+        SignedShotLogger.api.info("Exchanging nonce for trust token...")
+
+        guard isDeviceRegistered else {
+            SignedShotLogger.api.error("Cannot exchange nonce: device not registered")
+            throw SignedShotAPIError.deviceNotRegistered
+        }
+
+        let deviceToken = try getDeviceToken()
+        let url = configuration.baseURL.appendingPathComponent("capture/trust")
+        SignedShotLogger.api.debug("POST \(url.absoluteString)")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(deviceToken)", forHTTPHeaderField: "Authorization")
+
+        let body = TrustRequest(nonce: nonce)
+        request.httpBody = try encoder.encode(body)
+
+        let (data, response) = try await performRequest(request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            SignedShotLogger.api.error("Invalid response type")
+            throw SignedShotAPIError.networkError(URLError(.badServerResponse))
+        }
+
+        SignedShotLogger.api.debug("Response status: \(httpResponse.statusCode)")
+
+        switch httpResponse.statusCode {
+        case 200:
+            let trustResponse = try decoder.decode(TrustResponse.self, from: data)
+            let tokenPrefix = String(trustResponse.trustToken.prefix(20))
+            SignedShotLogger.api.info("Trust token received: \(tokenPrefix)...")
+            return trustResponse
+
+        case 400:
+            SignedShotLogger.api.error("Trust exchange failed: invalid nonce")
+            throw SignedShotAPIError.invalidNonce
+
+        case 401:
+            SignedShotLogger.api.error("Trust exchange failed: unauthorized")
+            throw SignedShotAPIError.unauthorized
+
+        case 410:
+            SignedShotLogger.api.error("Trust exchange failed: session expired")
+            throw SignedShotAPIError.sessionExpired
+
+        default:
+            let errorMessage = try? decoder.decode(APIErrorResponse.self, from: data).detail
+            let msg = errorMessage ?? "unknown"
+            SignedShotLogger.api.error("Trust exchange failed: \(httpResponse.statusCode) - \(msg)")
+            throw SignedShotAPIError.httpError(statusCode: httpResponse.statusCode, message: errorMessage)
+        }
+    }
+
     // MARK: - Private Helpers
 
     private func performRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
