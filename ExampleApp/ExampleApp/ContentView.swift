@@ -5,6 +5,7 @@
 
 import SignedShotSDK
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @StateObject private var captureService = CaptureService()
@@ -12,8 +13,21 @@ struct ContentView: View {
     @State private var errorMessage: String?
     @State private var savedPhotoURL: URL?
     @State private var isSetup = false
+    @State private var isDeviceRegistered = false
+    @State private var isRegistering = false
+    @State private var deviceId: String?
 
     private let storage = PhotoStorage()
+    private let client: SignedShotClient
+
+    init() {
+        // Configure the SignedShot client
+        let config = SignedShotConfiguration(
+            baseURLString: "https://dev-api.signedshot.io",
+            publisherId: "9a5b1062-a8fe-4871-bdc1-fe54e96cbf1c"
+        )!
+        client = SignedShotClient(configuration: config)
+    }
 
     var body: some View {
         ZStack {
@@ -34,6 +48,12 @@ struct ContentView: View {
 
                 Spacer()
 
+                // Registration prompt (if not registered)
+                if !isDeviceRegistered {
+                    registrationPrompt
+                        .padding()
+                }
+
                 // Captured photo preview
                 if let photo = lastCapturedPhoto {
                     capturedPhotoPreview(photo)
@@ -46,7 +66,7 @@ struct ContentView: View {
             }
         }
         .task {
-            await setupCamera()
+            await initialize()
         }
         .alert("Error", isPresented: .constant(errorMessage != nil)) {
             Button("OK") { errorMessage = nil }
@@ -65,6 +85,23 @@ struct ContentView: View {
 
             Spacer()
 
+            // Registration status indicator
+            if isDeviceRegistered {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .foregroundColor(.green)
+                    if let deviceId = deviceId {
+                        Text(String(deviceId.prefix(8)))
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                }
+            } else {
+                Image(systemName: "shield.slash")
+                    .foregroundColor(.orange)
+            }
+
+            // Camera status
             if captureService.isSessionRunning {
                 Circle()
                     .fill(.green)
@@ -75,6 +112,42 @@ struct ContentView: View {
         .padding(.vertical, 8)
         .background(.black.opacity(0.5))
         .cornerRadius(8)
+    }
+
+    private var registrationPrompt: some View {
+        VStack(spacing: 12) {
+            Text("Device Not Registered")
+                .font(.headline)
+                .foregroundColor(.white)
+
+            Text("Register this device to enable authenticated captures")
+                .font(.caption)
+                .foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+
+            Button(action: {
+                Task { await registerDevice() }
+            }) {
+                HStack {
+                    if isRegistering {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "shield.checkered")
+                    }
+                    Text(isRegistering ? "Registering..." : "Register Device")
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(.blue)
+                .cornerRadius(8)
+            }
+            .disabled(isRegistering)
+        }
+        .padding()
+        .background(.black.opacity(0.7))
+        .cornerRadius(12)
     }
 
     private func capturedPhotoPreview(_ photo: CapturedPhoto) -> some View {
@@ -89,7 +162,7 @@ struct ContentView: View {
 
             VStack(spacing: 4) {
                 if let url = savedPhotoURL {
-                    Text("✓ \(url.lastPathComponent)")
+                    Text("\(url.lastPathComponent)")
                         .fontWeight(.medium)
                 }
                 Text("\(ByteCountFormatter.string(fromByteCount: Int64(photo.jpegData.count), countStyle: .file))")
@@ -141,11 +214,41 @@ struct ContentView: View {
 
     // MARK: - Actions
 
+    private func initialize() async {
+        // Check registration status
+        isDeviceRegistered = await client.isDeviceRegistered
+        deviceId = await client.deviceId
+
+        // Setup camera
+        await setupCamera()
+    }
+
     private func setupCamera() async {
         do {
             try await captureService.setupSession()
             captureService.startSession()
             isSetup = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func registerDevice() async {
+        isRegistering = true
+        defer { isRegistering = false }
+
+        do {
+            // Use vendor identifier as external ID
+            let externalId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+
+            let response = try await client.registerDevice(externalId: externalId)
+
+            isDeviceRegistered = true
+            deviceId = response.deviceId
+        } catch SignedShotAPIError.deviceAlreadyRegistered {
+            // Device was already registered - this is fine
+            isDeviceRegistered = true
+            deviceId = await client.deviceId
         } catch {
             errorMessage = error.localizedDescription
         }

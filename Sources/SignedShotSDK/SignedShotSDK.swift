@@ -8,4 +8,10 @@ public enum SignedShotSDK {
 }
 
 // Re-export main types for convenience
-// Users can import SignedShotSDK and access all public types
+// Users can import SignedShotSDK and access:
+// - SignedShotClient: Main API client
+// - SignedShotConfiguration: Client configuration
+// - CaptureService: Camera capture functionality
+// - CapturedPhoto: Captured photo with JPEG data
+// - PhotoStorage: Save photos to Documents folder
+// - KeychainStorage: Secure credential storage
