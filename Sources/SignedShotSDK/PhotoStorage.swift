@@ -35,6 +35,23 @@ public final class PhotoStorage: Sendable {
         return fileURL
     }
 
+    /// Save a sidecar file alongside a photo
+    /// - Parameters:
+    ///   - sidecarData: The sidecar JSON data
+    ///   - photoURL: The URL of the photo file
+    /// - Returns: The URL where the sidecar was saved
+    @discardableResult
+    public func saveSidecar(_ sidecarData: Data, for photoURL: URL) throws -> URL {
+        let sidecarURL = sidecarURL(for: photoURL)
+        try sidecarData.write(to: sidecarURL)
+        return sidecarURL
+    }
+
+    /// Get the sidecar URL for a photo URL
+    public func sidecarURL(for photoURL: URL) -> URL {
+        photoURL.deletingPathExtension().appendingPathExtension("sidecar.json")
+    }
+
     /// List all saved photos
     public func listPhotos() throws -> [URL] {
         let folderURL = try getFolderURL()
