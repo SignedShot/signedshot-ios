@@ -50,6 +50,51 @@ final class APIModelsTests: XCTestCase {
         XCTAssertNotNil(response.createdAt)
     }
 
+    // MARK: - CaptureSessionResponse Tests
+
+    func testCaptureSessionResponseDecoding() throws {
+        let json = """
+        {
+            "capture_id": "abc123-capture-id",
+            "nonce": "random-nonce-value",
+            "expires_at": "2024-01-15T10:35:00Z"
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let response = try decoder.decode(CaptureSessionResponse.self, from: json.data(using: .utf8)!)
+
+        XCTAssertEqual(response.captureId, "abc123-capture-id")
+        XCTAssertEqual(response.nonce, "random-nonce-value")
+        XCTAssertNotNil(response.expiresAt)
+    }
+
+    // MARK: - TrustRequest Tests
+
+    func testTrustRequestEncoding() throws {
+        let request = TrustRequest(nonce: "my-nonce-123")
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(request)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+        XCTAssertEqual(json?["nonce"] as? String, "my-nonce-123")
+    }
+
+    // MARK: - TrustResponse Tests
+
+    func testTrustResponseDecoding() throws {
+        let json = """
+        {"trust_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.signature"}
+        """
+
+        let decoder = JSONDecoder()
+        let response = try decoder.decode(TrustResponse.self, from: json.data(using: .utf8)!)
+
+        XCTAssertEqual(response.trustToken, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.signature")
+    }
+
     // MARK: - SignedShotAPIError Tests
 
     func testAPIErrorDescriptions() {
@@ -63,6 +108,9 @@ final class APIModelsTests: XCTestCase {
         XCTAssertNotNil(SignedShotAPIError.invalidPublisherId.errorDescription)
         XCTAssertNotNil(SignedShotAPIError.unauthorized.errorDescription)
         XCTAssertNotNil(SignedShotAPIError.notFound.errorDescription)
+        XCTAssertNotNil(SignedShotAPIError.deviceNotRegistered.errorDescription)
+        XCTAssertNotNil(SignedShotAPIError.invalidNonce.errorDescription)
+        XCTAssertNotNil(SignedShotAPIError.sessionExpired.errorDescription)
     }
 
     // MARK: - SignedShotConfiguration Tests

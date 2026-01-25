@@ -177,6 +177,56 @@ public actor SignedShotClient {
         }
     }
 
+    // MARK: - Capture Session
+
+    /// Create a new capture session
+    /// - Returns: Session info including capture_id, nonce, and expiration
+    /// - Throws: SignedShotAPIError if session creation fails
+    public func createCaptureSession() async throws -> CaptureSessionResponse {
+        SignedShotLogger.api.info("Creating capture session...")
+
+        guard isDeviceRegistered else {
+            SignedShotLogger.api.error("Cannot create session: device not registered")
+            throw SignedShotAPIError.deviceNotRegistered
+        }
+
+        let deviceToken = try getDeviceToken()
+        let url = configuration.baseURL.appendingPathComponent("capture/session")
+        SignedShotLogger.api.debug("POST \(url.absoluteString)")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(deviceToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await performRequest(request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            SignedShotLogger.api.error("Invalid response type")
+            throw SignedShotAPIError.networkError(URLError(.badServerResponse))
+        }
+
+        SignedShotLogger.api.debug("Response status: \(httpResponse.statusCode)")
+
+        switch httpResponse.statusCode {
+        case 201:
+            let sessionResponse = try decoder.decode(CaptureSessionResponse.self, from: data)
+            let captureIdPrefix = String(sessionResponse.captureId.prefix(8))
+            SignedShotLogger.api.info("Session created: \(captureIdPrefix)..., expires: \(sessionResponse.expiresAt)")
+            return sessionResponse
+
+        case 401:
+            SignedShotLogger.api.error("Session creation failed: unauthorized")
+            throw SignedShotAPIError.unauthorized
+
+        default:
+            let errorMessage = try? decoder.decode(APIErrorResponse.self, from: data).detail
+            let msg = errorMessage ?? "unknown"
+            SignedShotLogger.api.error("Session creation failed: \(httpResponse.statusCode) - \(msg)")
+            throw SignedShotAPIError.httpError(statusCode: httpResponse.statusCode, message: errorMessage)
+        }
+    }
+
     // MARK: - Private Helpers
 
     private func performRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
