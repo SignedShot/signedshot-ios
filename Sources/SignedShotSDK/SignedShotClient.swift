@@ -177,12 +177,6 @@ public actor SignedShotClient {
         }
     }
 
-    /// Clear stored device credentials (for re-registration)
-    public func clearStoredCredentials() throws {
-        try keychain.delete(forKey: Self.deviceTokenKey)
-        try keychain.delete(forKey: Self.deviceIdKey)
-    }
-
     // MARK: - Capture Session
 
     /// Create a new capture session

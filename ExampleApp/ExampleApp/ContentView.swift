@@ -13,9 +13,15 @@ struct ContentView: View {
     @State private var errorMessage: String?
     @State private var savedPhotoURL: URL?
     @State private var isSetup = false
+
+    // Registration state
     @State private var isDeviceRegistered = false
     @State private var isRegistering = false
     @State private var deviceId: String?
+
+    // Session state
+    @State private var currentSession: CaptureSessionResponse?
+    @State private var isStartingSession = false
 
     private let storage = PhotoStorage()
     private let client: SignedShotClient
@@ -27,6 +33,11 @@ struct ContentView: View {
             publisherId: "9a5b1062-a8fe-4871-bdc1-fe54e96cbf1c"
         )!
         client = SignedShotClient(configuration: config)
+    }
+
+    private var hasActiveSession: Bool {
+        guard let session = currentSession else { return false }
+        return session.expiresAt > Date()
     }
 
     var body: some View {
@@ -51,6 +62,18 @@ struct ContentView: View {
                 // Registration prompt (if not registered)
                 if !isDeviceRegistered {
                     registrationPrompt
+                        .padding()
+                }
+
+                // Session prompt (if registered but no active session)
+                if isDeviceRegistered && !hasActiveSession {
+                    sessionPrompt
+                        .padding()
+                }
+
+                // Session info (if active session)
+                if let session = currentSession, hasActiveSession {
+                    sessionInfo(session)
                         .padding()
                 }
 
@@ -99,6 +122,13 @@ struct ContentView: View {
             } else {
                 Image(systemName: "shield.slash")
                     .foregroundColor(.orange)
+            }
+
+            // Session status indicator
+            if hasActiveSession {
+                Image(systemName: "circle.fill")
+                    .foregroundColor(.green)
+                    .font(.caption2)
             }
 
             // Camera status
@@ -150,6 +180,67 @@ struct ContentView: View {
         .cornerRadius(12)
     }
 
+    private var sessionPrompt: some View {
+        VStack(spacing: 12) {
+            Text("Ready to Capture")
+                .font(.headline)
+                .foregroundColor(.white)
+
+            Text("Start a capture session to take an authenticated photo")
+                .font(.caption)
+                .foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+
+            Button(action: {
+                Task { await startSession() }
+            }) {
+                HStack {
+                    if isStartingSession {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "play.circle.fill")
+                    }
+                    Text(isStartingSession ? "Starting..." : "Start Session")
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(.green)
+                .cornerRadius(8)
+            }
+            .disabled(isStartingSession)
+        }
+        .padding()
+        .background(.black.opacity(0.7))
+        .cornerRadius(12)
+    }
+
+    private func sessionInfo(_ session: CaptureSessionResponse) -> some View {
+        VStack(spacing: 4) {
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                Text("Session Active")
+                    .font(.caption)
+                    .fontWeight(.medium)
+            }
+            Text("ID: \(String(session.captureId.prefix(8)))...")
+                .font(.caption2)
+                .foregroundColor(.gray)
+
+            let remaining = session.expiresAt.timeIntervalSinceNow
+            if remaining > 0 {
+                Text("Expires in \(Int(remaining))s")
+                    .font(.caption2)
+                    .foregroundColor(remaining < 30 ? .orange : .gray)
+            }
+        }
+        .padding(8)
+        .background(.black.opacity(0.7))
+        .cornerRadius(8)
+    }
+
     private func capturedPhotoPreview(_ photo: CapturedPhoto) -> some View {
         VStack(spacing: 8) {
             if let uiImage = UIImage(data: photo.jpegData) {
@@ -165,7 +256,10 @@ struct ContentView: View {
                     Text("\(url.lastPathComponent)")
                         .fontWeight(.medium)
                 }
-                Text("\(ByteCountFormatter.string(fromByteCount: Int64(photo.jpegData.count), countStyle: .file))")
+                Text(ByteCountFormatter.string(
+                    fromByteCount: Int64(photo.jpegData.count),
+                    countStyle: .file
+                ))
             }
             .font(.caption)
             .foregroundColor(.white)
@@ -196,11 +290,11 @@ struct ContentView: View {
         }) {
             ZStack {
                 Circle()
-                    .fill(.white)
+                    .fill(hasActiveSession ? .white : .gray)
                     .frame(width: 70, height: 70)
 
                 Circle()
-                    .stroke(.white, lineWidth: 4)
+                    .stroke(hasActiveSession ? .white : .gray, lineWidth: 4)
                     .frame(width: 80, height: 80)
 
                 if captureService.isCaptureInProgress {
@@ -209,7 +303,11 @@ struct ContentView: View {
                 }
             }
         }
-        .disabled(captureService.isCaptureInProgress || !isSetup)
+        .disabled(!canCapture)
+    }
+
+    private var canCapture: Bool {
+        isSetup && hasActiveSession && !captureService.isCaptureInProgress
     }
 
     // MARK: - Actions
@@ -249,7 +347,24 @@ struct ContentView: View {
         }
     }
 
+    private func startSession() async {
+        isStartingSession = true
+        defer { isStartingSession = false }
+
+        do {
+            let session = try await client.createCaptureSession()
+            currentSession = session
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func capturePhoto() async {
+        guard hasActiveSession else {
+            errorMessage = "No active session"
+            return
+        }
+
         do {
             let photo = try await captureService.capturePhoto()
             lastCapturedPhoto = photo
@@ -257,6 +372,9 @@ struct ContentView: View {
             // Save to Documents folder
             let url = try storage.save(photo)
             savedPhotoURL = url
+
+            // Clear session after capture (one-time use)
+            currentSession = nil
         } catch {
             errorMessage = error.localizedDescription
         }
