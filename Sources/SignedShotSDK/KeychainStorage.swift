@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 import Security
 
 /// Secure storage for sensitive data using the iOS Keychain
@@ -9,6 +10,7 @@ public final class KeychainStorage: Sendable {
     /// - Parameter service: Unique identifier for this app's keychain items
     public init(service: String = "io.signedshot.sdk") {
         self.service = service
+        SignedShotLogger.keychain.debug("KeychainStorage initialized with service: \(service)")
     }
 
     // MARK: - Public Methods
@@ -29,6 +31,8 @@ public final class KeychainStorage: Sendable {
     ///   - data: The data to store
     ///   - key: The key to store it under
     public func save(_ data: Data, forKey key: String) throws {
+        SignedShotLogger.keychain.debug("Saving \(data.count) bytes to keychain for key: \(key)")
+
         // Delete any existing item first
         try? delete(forKey: key)
 
@@ -43,8 +47,11 @@ public final class KeychainStorage: Sendable {
         let status = SecItemAdd(query as CFDictionary, nil)
 
         guard status == errSecSuccess else {
+            SignedShotLogger.keychain.error("Failed to save to keychain: status \(status)")
             throw KeychainError.saveFailed(status)
         }
+
+        SignedShotLogger.keychain.debug("Successfully saved to keychain for key: \(key)")
     }
 
     /// Retrieve a string value from the keychain
