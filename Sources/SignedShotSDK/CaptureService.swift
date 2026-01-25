@@ -1,9 +1,5 @@
 import AVFoundation
 
-#if canImport(UIKit)
-import UIKit
-#endif
-
 /// Result of a photo capture containing the raw JPEG data
 public struct CapturedPhoto: Sendable {
     /// Raw JPEG bytes - never recompressed
