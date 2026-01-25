@@ -23,6 +23,10 @@ struct ContentView: View {
     @State private var currentSession: CaptureSessionResponse?
     @State private var isStartingSession = false
 
+    // Trust token state
+    @State private var trustToken: String?
+    @State private var isExchangingToken = false
+
     private let storage = PhotoStorage()
     private let client: SignedShotClient
 
@@ -264,9 +268,36 @@ struct ContentView: View {
             .font(.caption)
             .foregroundColor(.white)
 
+            // Trust token status
+            if isExchangingToken {
+                HStack {
+                    ProgressView()
+                        .tint(.white)
+                    Text("Getting trust token...")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            } else if let token = trustToken {
+                VStack(spacing: 4) {
+                    HStack {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundColor(.green)
+                        Text("Trust Token Received")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.green)
+                    }
+                    Text(String(token.prefix(40)) + "...")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.gray)
+                        .lineLimit(2)
+                }
+            }
+
             Button("Dismiss") {
                 lastCapturedPhoto = nil
                 savedPhotoURL = nil
+                trustToken = nil
             }
             .font(.caption)
             .foregroundColor(.blue)
@@ -275,13 +306,6 @@ struct ContentView: View {
         .padding()
         .background(.black.opacity(0.7))
         .cornerRadius(12)
-        .onAppear {
-            // Auto-dismiss after 5 seconds
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                lastCapturedPhoto = nil
-                savedPhotoURL = nil
-            }
-        }
     }
 
     private var captureButton: some View {
@@ -360,7 +384,7 @@ struct ContentView: View {
     }
 
     private func capturePhoto() async {
-        guard hasActiveSession else {
+        guard let session = currentSession, hasActiveSession else {
             errorMessage = "No active session"
             return
         }
@@ -373,9 +397,16 @@ struct ContentView: View {
             let url = try storage.save(photo)
             savedPhotoURL = url
 
-            // Clear session after capture (one-time use)
+            // Exchange nonce for trust token
+            isExchangingToken = true
+            let response = try await client.exchangeTrustToken(nonce: session.nonce)
+            trustToken = response.trustToken
+            isExchangingToken = false
+
+            // Clear session after successful exchange (one-time use)
             currentSession = nil
         } catch {
+            isExchangingToken = false
             errorMessage = error.localizedDescription
         }
     }
