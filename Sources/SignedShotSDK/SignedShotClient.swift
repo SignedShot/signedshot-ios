@@ -44,6 +44,7 @@ public actor SignedShotClient {
     // Keychain keys
     private static let deviceTokenKey = "device_token"
     private static let deviceIdKey = "device_id"
+    private static let externalIdKey = "external_id"
 
     // MARK: - Initialization
 
@@ -78,12 +79,43 @@ public actor SignedShotClient {
         try? keychain.getString(forKey: Self.deviceIdKey)
     }
 
+    /// Get the stored external ID (or nil if not yet generated)
+    public var externalId: String? {
+        try? keychain.getString(forKey: Self.externalIdKey)
+    }
+
     /// Register this device with the SignedShot backend
-    /// - Parameter externalId: Unique identifier for this device (e.g., identifierForVendor)
     /// - Returns: The registration response containing device info and token
     /// - Throws: SignedShotAPIError if registration fails
     @discardableResult
-    public func registerDevice(externalId: String) async throws -> DeviceCreateResponse {
+    public func registerDevice() async throws -> DeviceCreateResponse {
+        let extId = try getOrCreateExternalId()
+        return try await performRegistration(externalId: extId, isRetry: false)
+    }
+
+    /// Clear stored device credentials (for re-registration)
+    public func clearStoredCredentials() throws {
+        SignedShotLogger.keychain.info("Clearing all stored credentials")
+        try keychain.delete(forKey: Self.deviceTokenKey)
+        try keychain.delete(forKey: Self.deviceIdKey)
+        try keychain.delete(forKey: Self.externalIdKey)
+    }
+
+    // MARK: - Private Registration Helpers
+
+    private func getOrCreateExternalId() throws -> String {
+        if let existing = try keychain.getString(forKey: Self.externalIdKey) {
+            SignedShotLogger.keychain.debug("Using existing externalId: \(existing.prefix(8))...")
+            return existing
+        }
+
+        let newId = UUID().uuidString
+        try keychain.save(newId, forKey: Self.externalIdKey)
+        SignedShotLogger.keychain.info("Generated new externalId: \(newId.prefix(8))...")
+        return newId
+    }
+
+    private func performRegistration(externalId: String, isRetry: Bool) async throws -> DeviceCreateResponse {
         SignedShotLogger.api.info("Registering device with externalId: \(externalId.prefix(8))...")
 
         let url = configuration.baseURL.appendingPathComponent("devices")
@@ -124,8 +156,18 @@ public actor SignedShotClient {
             throw SignedShotAPIError.invalidPublisherId
 
         case 409:
-            SignedShotLogger.api.warning("Device already registered")
-            throw SignedShotAPIError.deviceAlreadyRegistered
+            // Device already registered on backend
+            if isRetry {
+                // Already retried once, give up
+                SignedShotLogger.api.error("Registration failed: conflict persists after retry")
+                throw SignedShotAPIError.deviceAlreadyRegistered
+            }
+
+            // Clear credentials and retry with new external_id
+            SignedShotLogger.api.warning("Device conflict - clearing credentials and retrying")
+            try clearStoredCredentials()
+            let newExternalId = try getOrCreateExternalId()
+            return try await performRegistration(externalId: newExternalId, isRetry: true)
 
         default:
             let errorMessage = try? decoder.decode(APIErrorResponse.self, from: data).detail
@@ -133,12 +175,6 @@ public actor SignedShotClient {
             SignedShotLogger.api.error("Registration failed: \(httpResponse.statusCode) - \(msg)")
             throw SignedShotAPIError.httpError(statusCode: httpResponse.statusCode, message: errorMessage)
         }
-    }
-
-    /// Clear stored device credentials (for re-registration)
-    public func clearStoredCredentials() throws {
-        try keychain.delete(forKey: Self.deviceTokenKey)
-        try keychain.delete(forKey: Self.deviceIdKey)
     }
 
     // MARK: - Private Helpers
