@@ -6,3 +6,6 @@ public enum SignedShotSDK {
     /// SDK version
     public static let version = "0.1.0"
 }
+
+// Re-export main types for convenience
+// Users can import SignedShotSDK and access all public types
