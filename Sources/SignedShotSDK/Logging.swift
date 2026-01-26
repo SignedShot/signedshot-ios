@@ -8,5 +8,6 @@ enum SignedShotLogger {
     static let api = Logger(subsystem: subsystem, category: "API")
     static let keychain = Logger(subsystem: subsystem, category: "Keychain")
     static let capture = Logger(subsystem: subsystem, category: "Capture")
+    static let enclave = Logger(subsystem: subsystem, category: "SecureEnclave")
     static let general = Logger(subsystem: subsystem, category: "General")
 }

@@ -29,9 +29,15 @@ struct ContentView: View {
     @State private var sidecarURL: URL?
 
     private let sidecarGenerator = SidecarGenerator()
+    private let enclaveService = SecureEnclaveService()
 
     private let storage = PhotoStorage()
     private let client: SignedShotClient
+
+    // Secure Enclave test state
+    @State private var isTestingEnclave = false
+    @State private var enclaveTestResult: String?
+    @State private var showEnclaveTest = false
 
     init() {
         // Configure the SignedShot client
@@ -103,6 +109,40 @@ struct ContentView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+        .sheet(isPresented: $showEnclaveTest) {
+            enclaveTestSheet
+        }
+    }
+
+    private var enclaveTestSheet: some View {
+        NavigationView {
+            VStack(alignment: .leading, spacing: 16) {
+                if isTestingEnclave {
+                    HStack {
+                        ProgressView()
+                        Text("Testing Secure Enclave...")
+                            .padding(.leading, 8)
+                    }
+                    .padding()
+                } else if let result = enclaveTestResult {
+                    ScrollView {
+                        Text(result)
+                            .font(.system(.body, design: .monospaced))
+                            .padding()
+                    }
+                }
+                Spacer()
+            }
+            .navigationTitle("Secure Enclave Test")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        showEnclaveTest = false
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Subviews
@@ -112,6 +152,17 @@ struct ContentView: View {
             Text("SignedShot")
                 .font(.headline)
                 .foregroundColor(.white)
+
+            // Secure Enclave test button (debug only)
+            #if DEBUG
+            Button(action: {
+                showEnclaveTest = true
+                Task { await testSecureEnclave() }
+            }) {
+                Image(systemName: "key.fill")
+                    .foregroundColor(.yellow)
+            }
+            #endif
 
             Spacer()
 
@@ -427,6 +478,64 @@ struct ContentView: View {
             isExchangingToken = false
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func testSecureEnclave() async {
+        isTestingEnclave = true
+        enclaveTestResult = nil
+
+        var results: [String] = []
+        results.append("=== Secure Enclave Test ===\n")
+
+        do {
+            // Check if key exists
+            let keyExists = enclaveService.keyExists()
+            results.append("1. Key exists: \(keyExists ? "YES" : "NO")")
+
+            // Create key if needed
+            if !keyExists {
+                try enclaveService.createKey()
+                results.append("2. Key created: SUCCESS")
+            } else {
+                results.append("2. Key creation: SKIPPED (already exists)")
+            }
+
+            // Get public key
+            let publicKeyData = try enclaveService.getPublicKeyData()
+            results.append("3. Public key size: \(publicKeyData.count) bytes")
+            results.append("   Format: 0x\(String(format: "%02X", publicKeyData[0])) (uncompressed)")
+
+            let publicKeyBase64 = try enclaveService.getPublicKeyBase64()
+            results.append("4. Public key (base64):")
+            results.append("   \(publicKeyBase64.prefix(44))...")
+
+            // Sign test message
+            let testMessage = "Hello, SignedShot!"
+            let signature = try enclaveService.sign(message: testMessage)
+            results.append("5. Signature size: \(signature.count) bytes")
+
+            let signatureBase64 = signature.base64EncodedString()
+            results.append("6. Signature (base64):")
+            results.append("   \(signatureBase64.prefix(44))...")
+
+            // Verify signature
+            let messageData = Data(testMessage.utf8)
+            let isValid = try enclaveService.verify(signature: signature, for: messageData)
+            results.append("7. Signature valid: \(isValid ? "YES" : "NO")")
+
+            // Verify with wrong data fails
+            let wrongData = Data("Wrong message".utf8)
+            let isInvalid = try enclaveService.verify(signature: signature, for: wrongData)
+            results.append("8. Wrong data rejected: \(isInvalid ? "NO (BUG!)" : "YES")")
+
+            results.append("\n=== ALL TESTS PASSED ===")
+        } catch {
+            results.append("\n=== ERROR ===")
+            results.append(error.localizedDescription)
+        }
+
+        enclaveTestResult = results.joined(separator: "\n")
+        isTestingEnclave = false
     }
 }
 
