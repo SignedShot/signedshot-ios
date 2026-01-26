@@ -15,3 +15,4 @@ public enum SignedShotSDK {
 // - CapturedPhoto: Captured photo with JPEG data
 // - PhotoStorage: Save photos to Documents folder
 // - KeychainStorage: Secure credential storage
+// - SecureEnclaveService: Secure Enclave key management and signing
