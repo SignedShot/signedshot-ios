@@ -251,24 +251,20 @@ public final class SecureEnclaveService: Sendable {
     /// - Parameters:
     ///   - signature: The DER-encoded signature to verify
     ///   - data: The original data that was signed
-    /// - Returns: True if the signature is valid
-    /// - Throws: `SecureEnclaveError` if verification fails
+    /// - Returns: True if the signature is valid, false otherwise
+    /// - Throws: `SecureEnclaveError` if public key retrieval fails
     public func verify(signature: Data, for data: Data) throws -> Bool {
         let publicKey = try getPublicKey()
 
-        var error: Unmanaged<CFError>?
+        // SecKeyVerifySignature returns false for invalid signatures
+        // and may set an error, but that's expected behavior - not an exception
         let isValid = SecKeyVerifySignature(
             publicKey,
             .ecdsaSignatureMessageX962SHA256,
             data as CFData,
             signature as CFData,
-            &error
+            nil  // Don't capture error - false return is sufficient
         )
-
-        if let cfError = error?.takeRetainedValue() {
-            SignedShotLogger.enclave.error("Verification error: \(cfError)")
-            throw SecureEnclaveError.verificationFailed(cfError)
-        }
 
         return isValid
     }
