@@ -111,15 +111,16 @@ public final class SecureEnclaveService: Sendable {
             kSecReturnRef as String: true
         ]
 
-        var result: CFTypeRef?
+        var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
 
-        guard status == errSecSuccess, let privateKey = result as! SecKey? else {
+        guard status == errSecSuccess else {
             SignedShotLogger.enclave.error("Failed to retrieve private key: status \(status)")
             throw SecureEnclaveError.keyNotFound
         }
 
-        return privateKey
+        // swiftlint:disable:next force_cast
+        return result as! SecKey
     }
 
     /// Get the public key from the Secure Enclave key pair
