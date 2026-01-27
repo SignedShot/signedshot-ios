@@ -140,7 +140,14 @@ final class APIModelsTests: XCTestCase {
     // MARK: - Sidecar Tests
 
     func testSidecarEncoding() throws {
-        let sidecar = Sidecar(jwt: "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.test.sig")
+        let mediaIntegrity = MediaIntegrity(
+            contentHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            signature: "c2lnbmF0dXJl",
+            publicKey: "cHVibGljS2V5",
+            captureId: "550e8400-e29b-41d4-a716-446655440000",
+            capturedAt: "2026-01-26T15:30:00Z"
+        )
+        let sidecar = Sidecar(jwt: "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.test.sig", mediaIntegrity: mediaIntegrity)
 
         let encoder = JSONEncoder()
         let data = try encoder.encode(sidecar)
@@ -150,6 +157,10 @@ final class APIModelsTests: XCTestCase {
 
         let captureTrust = json?["capture_trust"] as? [String: Any]
         XCTAssertEqual(captureTrust?["jwt"] as? String, "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.test.sig")
+
+        let integrity = json?["media_integrity"] as? [String: Any]
+        XCTAssertNotNil(integrity)
+        XCTAssertEqual(integrity?["capture_id"] as? String, "550e8400-e29b-41d4-a716-446655440000")
     }
 
     func testSidecarDecoding() throws {
@@ -158,6 +169,13 @@ final class APIModelsTests: XCTestCase {
             "version": "1.0",
             "capture_trust": {
                 "jwt": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature"
+            },
+            "media_integrity": {
+                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "signature": "c2lnbmF0dXJl",
+                "public_key": "cHVibGljS2V5",
+                "capture_id": "550e8400-e29b-41d4-a716-446655440000",
+                "captured_at": "2026-01-26T15:30:00Z"
             }
         }
         """
@@ -167,17 +185,26 @@ final class APIModelsTests: XCTestCase {
 
         XCTAssertEqual(sidecar.version, "1.0")
         XCTAssertEqual(sidecar.captureTrust.jwt, "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature")
+        XCTAssertEqual(sidecar.mediaIntegrity.captureId, "550e8400-e29b-41d4-a716-446655440000")
     }
 
     func testSidecarGenerator() throws {
         let generator = SidecarGenerator()
         let jwt = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.test.signature"
+        let mediaIntegrity = MediaIntegrity(
+            contentHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            signature: "c2lnbmF0dXJl",
+            publicKey: "cHVibGljS2V5",
+            captureId: "550e8400-e29b-41d4-a716-446655440000",
+            capturedAt: "2026-01-26T15:30:00Z"
+        )
 
-        let jsonString = try generator.generateString(jwt: jwt)
+        let jsonString = try generator.generateString(jwt: jwt, mediaIntegrity: mediaIntegrity)
 
         XCTAssertTrue(jsonString.contains("\"version\" : \"1.0\""))
         XCTAssertTrue(jsonString.contains("\"capture_trust\""))
         XCTAssertTrue(jsonString.contains(jwt))
+        XCTAssertTrue(jsonString.contains("\"media_integrity\""))
     }
 
     // MARK: - KeychainError Tests
