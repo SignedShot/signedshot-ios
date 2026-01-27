@@ -30,9 +30,13 @@ struct ContentView: View {
 
     private let sidecarGenerator = SidecarGenerator()
     private let enclaveService = SecureEnclaveService()
+    private let integrityService: MediaIntegrityService
 
     private let storage = PhotoStorage()
     private let client: SignedShotClient
+
+    // Secure Enclave state
+    @State private var isEnclaveReady = false
 
     // Secure Enclave test state
     @State private var isTestingEnclave = false
@@ -46,6 +50,7 @@ struct ContentView: View {
             publisherId: "9a5b1062-a8fe-4871-bdc1-fe54e96cbf1c"
         )!
         client = SignedShotClient(configuration: config)
+        integrityService = MediaIntegrityService(enclaveService: enclaveService)
     }
 
     private var hasActiveSession: Bool {
@@ -406,8 +411,24 @@ struct ContentView: View {
         isDeviceRegistered = await client.isDeviceRegistered
         deviceId = await client.deviceId
 
+        // Setup Secure Enclave key
+        await setupSecureEnclave()
+
         // Setup camera
         await setupCamera()
+    }
+
+    private func setupSecureEnclave() async {
+        do {
+            if !enclaveService.keyExists() {
+                try enclaveService.createKey()
+            }
+            isEnclaveReady = true
+        } catch {
+            // Secure Enclave not available (simulator) - continue without it
+            isEnclaveReady = false
+            print("Secure Enclave not available: \(error.localizedDescription)")
+        }
     }
 
     private func setupCamera() async {
@@ -455,21 +476,41 @@ struct ContentView: View {
         }
 
         do {
+            // 1. Capture photo → JPEG bytes in memory
             let photo = try await captureService.capturePhoto()
             lastCapturedPhoto = photo
+            let capturedAt = photo.capturedAt
 
-            // Save to Documents folder
-            let url = try storage.save(photo)
-            savedPhotoURL = url
+            // 2. Generate media integrity (hash + sign) BEFORE saving to disk
+            var mediaIntegrity: MediaIntegrity?
+            if isEnclaveReady {
+                mediaIntegrity = try integrityService.generateIntegrity(
+                    for: photo.jpegData,
+                    captureId: session.captureId,
+                    capturedAt: capturedAt
+                )
+            }
 
-            // Exchange nonce for trust token
+            // 3. Exchange nonce for trust token
             isExchangingToken = true
             let response = try await client.exchangeTrustToken(nonce: session.nonce)
             trustToken = response.trustToken
             isExchangingToken = false
 
-            // Generate and save sidecar
-            let sidecarData = try sidecarGenerator.generate(jwt: response.trustToken)
+            // 4. Generate sidecar (JWT + media_integrity)
+            let sidecarData: Data
+            if let integrity = mediaIntegrity {
+                sidecarData = try sidecarGenerator.generate(
+                    jwt: response.trustToken,
+                    mediaIntegrity: integrity
+                )
+            } else {
+                sidecarData = try sidecarGenerator.generate(jwt: response.trustToken)
+            }
+
+            // 5. Save photo + sidecar together
+            let url = try storage.save(photo)
+            savedPhotoURL = url
             sidecarURL = try storage.saveSidecar(sidecarData, for: url)
 
             // Clear session after successful exchange (one-time use)
