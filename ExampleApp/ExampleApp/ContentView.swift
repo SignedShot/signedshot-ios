@@ -401,7 +401,7 @@ struct ContentView: View {
     }
 
     private var canCapture: Bool {
-        isSetup && hasActiveSession && !captureService.isCaptureInProgress
+        isSetup && hasActiveSession && isEnclaveReady && !captureService.isCaptureInProgress
     }
 
     // MARK: - Actions
@@ -475,6 +475,11 @@ struct ContentView: View {
             return
         }
 
+        guard isEnclaveReady else {
+            errorMessage = "Secure Enclave not available. Cannot capture without media integrity."
+            return
+        }
+
         do {
             // 1. Capture photo → JPEG bytes in memory
             let photo = try await captureService.capturePhoto()
@@ -482,14 +487,11 @@ struct ContentView: View {
             let capturedAt = photo.capturedAt
 
             // 2. Generate media integrity (hash + sign) BEFORE saving to disk
-            var mediaIntegrity: MediaIntegrity?
-            if isEnclaveReady {
-                mediaIntegrity = try integrityService.generateIntegrity(
-                    for: photo.jpegData,
-                    captureId: session.captureId,
-                    capturedAt: capturedAt
-                )
-            }
+            let mediaIntegrity = try integrityService.generateIntegrity(
+                for: photo.jpegData,
+                captureId: session.captureId,
+                capturedAt: capturedAt
+            )
 
             // 3. Exchange nonce for trust token
             isExchangingToken = true
@@ -498,15 +500,10 @@ struct ContentView: View {
             isExchangingToken = false
 
             // 4. Generate sidecar (JWT + media_integrity)
-            let sidecarData: Data
-            if let integrity = mediaIntegrity {
-                sidecarData = try sidecarGenerator.generate(
-                    jwt: response.trustToken,
-                    mediaIntegrity: integrity
-                )
-            } else {
-                sidecarData = try sidecarGenerator.generate(jwt: response.trustToken)
-            }
+            let sidecarData = try sidecarGenerator.generate(
+                jwt: response.trustToken,
+                mediaIntegrity: mediaIntegrity
+            )
 
             // 5. Save photo + sidecar together
             let url = try storage.save(photo)
