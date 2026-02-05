@@ -116,7 +116,11 @@ public actor SignedShotClient {
         return newId
     }
 
-    private func performRegistration(externalId: String, attestationToken: String? = nil, isRetry: Bool) async throws -> DeviceCreateResponse {
+    private func performRegistration(
+        externalId: String,
+        attestationToken: String? = nil,
+        isRetry: Bool
+    ) async throws -> DeviceCreateResponse {
         SignedShotLogger.api.info("Registering device with externalId: \(externalId.prefix(8))...")
 
         let url = configuration.baseURL.appendingPathComponent("devices")
@@ -174,7 +178,11 @@ public actor SignedShotClient {
             SignedShotLogger.api.warning("Device conflict - clearing credentials and retrying")
             try clearStoredCredentials()
             let newExternalId = try getOrCreateExternalId()
-            return try await performRegistration(externalId: newExternalId, attestationToken: attestationToken, isRetry: true)
+            return try await performRegistration(
+                externalId: newExternalId,
+                attestationToken: attestationToken,
+                isRetry: true
+            )
 
         default:
             let errorMessage = try? decoder.decode(APIErrorResponse.self, from: data).detail
