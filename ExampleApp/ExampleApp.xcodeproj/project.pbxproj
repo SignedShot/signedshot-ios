@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		52BD9D732F34ADF700B8D3FD /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 52BD9D722F34ADF700B8D3FD /* FirebaseAnalytics */; };
+		52BD9D752F34ADF700B8D3FD /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = 52BD9D742F34ADF700B8D3FD /* FirebaseAppCheck */; };
 		52D1F9FB2F25916400810D03 /* SignedShotSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 52D1F9FA2F25916400810D03 /* SignedShotSDK */; };
 /* End PBXBuildFile section */
 
@@ -40,6 +42,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				52BD9D732F34ADF700B8D3FD /* FirebaseAnalytics in Frameworks */,
+				52BD9D752F34ADF700B8D3FD /* FirebaseAppCheck in Frameworks */,
 				52D1F9FB2F25916400810D03 /* SignedShotSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -84,6 +88,8 @@
 			name = ExampleApp;
 			packageProductDependencies = (
 				52D1F9FA2F25916400810D03 /* SignedShotSDK */,
+				52BD9D722F34ADF700B8D3FD /* FirebaseAnalytics */,
+				52BD9D742F34ADF700B8D3FD /* FirebaseAppCheck */,
 			);
 			productName = ExampleApp;
 			productReference = 52D1F9EB2F258D7600810D03 /* ExampleApp.app */;
@@ -115,6 +121,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				52D1F9F92F25916400810D03 /* XCLocalSwiftPackageReference "../../signedshot-ios" */,
+				52BD9D712F34ADF700B8D3FD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 52D1F9EC2F258D7600810D03 /* Products */;
@@ -362,7 +369,28 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		52BD9D712F34ADF700B8D3FD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		52BD9D722F34ADF700B8D3FD /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 52BD9D712F34ADF700B8D3FD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		52BD9D742F34ADF700B8D3FD /* FirebaseAppCheck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 52BD9D712F34ADF700B8D3FD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAppCheck;
+		};
 		52D1F9FA2F25916400810D03 /* SignedShotSDK */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SignedShotSDK;
