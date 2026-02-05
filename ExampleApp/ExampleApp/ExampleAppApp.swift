@@ -27,13 +27,14 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 // App Check provider factory - renamed to avoid conflict with protocol
 class SignedShotAppCheckProviderFactory: NSObject, AppCheckProviderFactory {
   func createProvider(with app: FirebaseApp) -> (any AppCheckProvider)? {
-      #if targetEnvironment(simulator)
-      // Use debug provider for simulator
+      // TODO: Re-enable App Attest once configuration issue is resolved
+      // #if targetEnvironment(simulator)
+      // Use debug provider for now (both simulator and device)
       return AppCheckDebugProvider(app: app)
-      #else
-      // Use App Attest for real devices
-      return AppAttestProvider(app: app)
-      #endif
+      // #else
+      // // Use App Attest for real devices
+      // return AppAttestProvider(app: app)
+      // #endif
   }
 }
 

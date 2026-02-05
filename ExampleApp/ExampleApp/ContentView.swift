@@ -3,9 +3,13 @@
 //  ExampleApp
 //
 
+import FirebaseAppCheck
+import os.log
 import SignedShotSDK
 import SwiftUI
 import UIKit
+
+private let logger = Logger(subsystem: "io.signedshot.capture", category: "App")
 
 struct ContentView: View {
     @StateObject private var captureService = CaptureService()
@@ -171,7 +175,7 @@ struct ContentView: View {
 
             Spacer()
 
-            // Registration status indicator
+            // Registration status indicator (long press to reset)
             if isDeviceRegistered {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.shield.fill")
@@ -180,6 +184,13 @@ struct ContentView: View {
                         Text(String(deviceId.prefix(8)))
                             .font(.caption2)
                             .foregroundColor(.gray)
+                    }
+                }
+                .contextMenu {
+                    Button(role: .destructive) {
+                        Task { await resetDevice() }
+                    } label: {
+                        Label("Reset Device", systemImage: "trash")
                     }
                 }
             } else {
@@ -427,7 +438,7 @@ struct ContentView: View {
         } catch {
             // Secure Enclave not available (simulator) - continue without it
             isEnclaveReady = false
-            print("Secure Enclave not available: \(error.localizedDescription)")
+            logger.warning("Secure Enclave not available: \(error.localizedDescription)")
         }
     }
 
@@ -446,14 +457,43 @@ struct ContentView: View {
         defer { isRegistering = false }
 
         do {
+            // Get Firebase App Check token for attestation
+            let attestationToken = try await getAppCheckToken()
+
             // Registration handles external_id internally
             // If 409 conflict occurs, it auto-retries with a new ID
-            let response = try await client.registerDevice()
+            let response = try await client.registerDevice(attestationToken: attestationToken)
 
             isDeviceRegistered = true
             deviceId = response.deviceId
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func resetDevice() async {
+        do {
+            try await client.clearStoredCredentials()
+            isDeviceRegistered = false
+            deviceId = nil
+            currentSession = nil
+            trustToken = nil
+            logger.info("Device credentials cleared successfully")
+        } catch {
+            errorMessage = "Failed to reset: \(error.localizedDescription)"
+            logger.error("Failed to clear device credentials: \(error.localizedDescription)")
+        }
+    }
+
+    /// Get Firebase App Check token for device attestation
+    private func getAppCheckToken() async throws -> String? {
+        do {
+            let token = try await AppCheck.appCheck().token(forcingRefresh: false)
+            return token.token
+        } catch {
+            // Log but don't fail - let the backend decide if token is required
+            logger.warning("App Check token retrieval failed: \(error.localizedDescription)")
+            return nil
         }
     }
 

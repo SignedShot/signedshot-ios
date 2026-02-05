@@ -85,12 +85,13 @@ public actor SignedShotClient {
     }
 
     /// Register this device with the SignedShot backend
+    /// - Parameter attestationToken: Optional attestation token (e.g., from Firebase App Check)
     /// - Returns: The registration response containing device info and token
     /// - Throws: SignedShotAPIError if registration fails
     @discardableResult
-    public func registerDevice() async throws -> DeviceCreateResponse {
+    public func registerDevice(attestationToken: String? = nil) async throws -> DeviceCreateResponse {
         let extId = try getOrCreateExternalId()
-        return try await performRegistration(externalId: extId, isRetry: false)
+        return try await performRegistration(externalId: extId, attestationToken: attestationToken, isRetry: false)
     }
 
     /// Clear stored device credentials (for re-registration)
@@ -115,7 +116,7 @@ public actor SignedShotClient {
         return newId
     }
 
-    private func performRegistration(externalId: String, isRetry: Bool) async throws -> DeviceCreateResponse {
+    private func performRegistration(externalId: String, attestationToken: String? = nil, isRetry: Bool) async throws -> DeviceCreateResponse {
         SignedShotLogger.api.info("Registering device with externalId: \(externalId.prefix(8))...")
 
         let url = configuration.baseURL.appendingPathComponent("devices")
@@ -125,6 +126,12 @@ public actor SignedShotClient {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(configuration.publisherId, forHTTPHeaderField: "X-Publisher-ID")
+
+        // Add attestation token header if provided
+        if let token = attestationToken {
+            request.setValue(token, forHTTPHeaderField: "X-Attestation-Token")
+            SignedShotLogger.api.debug("Including attestation token in request")
+        }
 
         let body = DeviceCreateRequest(externalId: externalId)
         request.httpBody = try encoder.encode(body)
@@ -167,7 +174,7 @@ public actor SignedShotClient {
             SignedShotLogger.api.warning("Device conflict - clearing credentials and retrying")
             try clearStoredCredentials()
             let newExternalId = try getOrCreateExternalId()
-            return try await performRegistration(externalId: newExternalId, isRetry: true)
+            return try await performRegistration(externalId: newExternalId, attestationToken: attestationToken, isRetry: true)
 
         default:
             let errorMessage = try? decoder.decode(APIErrorResponse.self, from: data).detail
