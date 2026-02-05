@@ -31,3 +31,4 @@ Carthage/Checkouts/
 .idea/
 *.swp
 *.swo
+GoogleService-Info.plist
