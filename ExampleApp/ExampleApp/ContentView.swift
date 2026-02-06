@@ -48,11 +48,18 @@ struct ContentView: View {
     @State private var showEnclaveTest = false
 
     init() {
-        // Configure the SignedShot client
+        // Configure the SignedShot client based on build configuration
+        #if DEBUG
         let config = SignedShotConfiguration(
             baseURLString: "https://dev-api.signedshot.io",
             publisherId: "9a5b1062-a8fe-4871-bdc1-fe54e96cbf1c"
         )!
+        #else
+        let config = SignedShotConfiguration(
+            baseURLString: "https://api.signedshot.io",
+            publisherId: "8f6b5d94-af3b-4f57-be68-e93eedd772fc"
+        )!
+        #endif
         client = SignedShotClient(configuration: config)
         integrityService = MediaIntegrityService(enclaveService: enclaveService)
     }
