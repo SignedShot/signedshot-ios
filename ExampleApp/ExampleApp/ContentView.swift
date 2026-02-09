@@ -100,8 +100,8 @@ struct ContentView: View {
                         .padding()
                 }
 
-                // Session prompt (if registered but no active session)
-                if isDeviceRegistered && !hasActiveSession {
+                // Session prompt (if registered but no active session and no photo showing)
+                if isDeviceRegistered && !hasActiveSession && lastCapturedPhoto == nil {
                     sessionPrompt
                         .padding()
                 }
@@ -424,14 +424,55 @@ struct ContentView: View {
                 }
             }
 
-            Button("Dismiss") {
-                lastCapturedPhoto = nil
-                savedPhotoURL = nil
-                trustToken = nil
-                sidecarURL = nil
+            // Post-capture guidance
+            if sidecarURL != nil {
+                Divider()
+                    .background(.gray.opacity(0.5))
+
+                VStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "folder.fill")
+                            .foregroundColor(.blue)
+                        Text("Saved to Files → SignedShot")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                    }
+
+                    Text("Verify via CLI:")
+                        .font(.system(size: 10))
+                        .foregroundColor(.gray)
+
+                    Text("$ signedshot verify <photo> <sidecar>")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.gray)
+                }
             }
-            .font(.caption)
-            .foregroundColor(.blue)
+
+            HStack(spacing: 16) {
+                if sidecarURL != nil {
+                    Button(action: openFilesApp) {
+                        HStack {
+                            Image(systemName: "arrow.up.forward.app")
+                            Text("Open in Files")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(.blue)
+                        .cornerRadius(8)
+                    }
+                }
+
+                Button("Dismiss") {
+                    lastCapturedPhoto = nil
+                    savedPhotoURL = nil
+                    trustToken = nil
+                    sidecarURL = nil
+                }
+                .font(.caption)
+                .foregroundColor(.gray)
+            }
             .padding(.top, 4)
         }
         .padding()
@@ -631,6 +672,13 @@ struct ContentView: View {
             isExchangingToken = false
             errorMessage = error.localizedDescription
             retryAction = { await capturePhoto() }
+        }
+    }
+
+    private func openFilesApp() {
+        // Open the Files app to the SignedShot folder
+        if let url = URL(string: "shareddocuments://") {
+            UIApplication.shared.open(url)
         }
     }
 
