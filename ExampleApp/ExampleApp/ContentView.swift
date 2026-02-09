@@ -522,6 +522,17 @@ struct ContentView: View {
         }
     }
 
+    private func handleUnauthorized() async {
+        logger.warning("Unauthorized: clearing credentials and prompting re-registration")
+        try? await client.clearStoredCredentials()
+        isDeviceRegistered = false
+        deviceId = nil
+        currentSession = nil
+        trustToken = nil
+        sessionExpired = false
+        errorMessage = "Your device session has expired. Please register again."
+    }
+
     private func resetDevice() async {
         do {
             try await client.clearStoredCredentials()
@@ -556,6 +567,8 @@ struct ContentView: View {
             let session = try await client.createCaptureSession()
             currentSession = session
             sessionExpired = false
+        } catch SignedShotAPIError.unauthorized {
+            await handleUnauthorized()
         } catch {
             errorMessage = error.localizedDescription
             retryAction = { await startSession() }
@@ -610,6 +623,10 @@ struct ContentView: View {
             currentSession = nil
             sessionExpired = true
             lastCapturedPhoto = nil
+        } catch SignedShotAPIError.unauthorized {
+            isExchangingToken = false
+            lastCapturedPhoto = nil
+            await handleUnauthorized()
         } catch {
             isExchangingToken = false
             errorMessage = error.localizedDescription
