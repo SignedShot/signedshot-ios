@@ -42,9 +42,15 @@ struct ExampleAppApp: App {
   // Register app delegate for Firebase setup
   @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
+  @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+
   var body: some Scene {
       WindowGroup {
-          ContentView()
+          if hasCompletedOnboarding {
+              ContentView()
+          } else {
+              OnboardingView()
+          }
       }
   }
 }
