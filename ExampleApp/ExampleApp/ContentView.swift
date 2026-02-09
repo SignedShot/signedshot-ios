@@ -199,15 +199,15 @@ struct ContentView: View {
                 .foregroundColor(.white)
 
             // Secure Enclave test button (debug only)
-            #if DEBUG
-            Button(action: {
-                showEnclaveTest = true
-                Task { await testSecureEnclave() }
-            }) {
-                Image(systemName: "key.fill")
-                    .foregroundColor(.yellow)
-            }
-            #endif
+             #if DEBUG
+             Button(action: {
+                 showEnclaveTest = true
+                 Task { await testSecureEnclave() }
+             }) {
+                 Image(systemName: "key.fill")
+                     .foregroundColor(.yellow)
+             }
+             #endif
 
             Spacer()
 
