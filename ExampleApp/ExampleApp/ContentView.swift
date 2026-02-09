@@ -3,6 +3,7 @@
 //  ExampleApp
 //
 
+import Combine
 import FirebaseAppCheck
 import os.log
 import SignedShotSDK
@@ -38,6 +39,10 @@ struct ContentView: View {
 
     private let storage = PhotoStorage()
     private let client: SignedShotClient
+
+    // Session expired state
+    @State private var sessionExpired = false
+    @State private var sessionTimeRemaining: Int = 0
 
     // Secure Enclave state
     @State private var isEnclaveReady = false
@@ -119,6 +124,16 @@ struct ContentView: View {
         }
         .task {
             await initialize()
+        }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            if let session = currentSession {
+                let remaining = Int(session.expiresAt.timeIntervalSinceNow)
+                sessionTimeRemaining = max(remaining, 0)
+                if remaining <= 0 {
+                    sessionExpired = true
+                    currentSession = nil
+                }
+            }
         }
         .alert("Error", isPresented: .constant(errorMessage != nil)) {
             Button("OK") { errorMessage = nil }
@@ -263,14 +278,29 @@ struct ContentView: View {
 
     private var sessionPrompt: some View {
         VStack(spacing: 12) {
-            Text("Ready to Capture")
-                .font(.headline)
-                .foregroundColor(.white)
+            if sessionExpired {
+                Image(systemName: "clock.badge.exclamationmark")
+                    .foregroundColor(.orange)
+                    .font(.title2)
 
-            Text("Start a capture session to take an authenticated photo")
-                .font(.caption)
-                .foregroundColor(.gray)
-                .multilineTextAlignment(.center)
+                Text("Session Expired")
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                Text("Your capture session has expired. Create a new one to continue.")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+            } else {
+                Text("Ready to Capture")
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                Text("Start a capture session to take an authenticated photo")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+            }
 
             Button(action: {
                 Task { await startSession() }
@@ -282,12 +312,12 @@ struct ContentView: View {
                     } else {
                         Image(systemName: "play.circle.fill")
                     }
-                    Text(isStartingSession ? "Starting..." : "Start Session")
+                    Text(isStartingSession ? "Starting..." : sessionExpired ? "Create New Session" : "Start Session")
                 }
                 .foregroundColor(.white)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 10)
-                .background(.green)
+                .background(sessionExpired ? .orange : .green)
                 .cornerRadius(8)
             }
             .disabled(isStartingSession)
@@ -310,11 +340,10 @@ struct ContentView: View {
                 .font(.caption2)
                 .foregroundColor(.gray)
 
-            let remaining = session.expiresAt.timeIntervalSinceNow
-            if remaining > 0 {
-                Text("Expires in \(Int(remaining))s")
+            if sessionTimeRemaining > 0 {
+                Text("Expires in \(sessionTimeRemaining)s")
                     .font(.caption2)
-                    .foregroundColor(remaining < 30 ? .orange : .gray)
+                    .foregroundColor(sessionTimeRemaining < 30 ? .orange : .gray)
             }
         }
         .padding(8)
@@ -511,6 +540,7 @@ struct ContentView: View {
         do {
             let session = try await client.createCaptureSession()
             currentSession = session
+            sessionExpired = false
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -559,6 +589,11 @@ struct ContentView: View {
 
             // Clear session after successful exchange (one-time use)
             currentSession = nil
+        } catch SignedShotAPIError.sessionExpired {
+            isExchangingToken = false
+            currentSession = nil
+            sessionExpired = true
+            lastCapturedPhoto = nil
         } catch {
             isExchangingToken = false
             errorMessage = error.localizedDescription
