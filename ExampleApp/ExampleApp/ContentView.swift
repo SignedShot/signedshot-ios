@@ -16,6 +16,7 @@ struct ContentView: View {
     @StateObject private var captureService = CaptureService()
     @State private var lastCapturedPhoto: CapturedPhoto?
     @State private var errorMessage: String?
+    @State private var retryAction: (() async -> Void)?
     @State private var savedPhotoURL: URL?
     @State private var isSetup = false
 
@@ -136,7 +137,20 @@ struct ContentView: View {
             }
         }
         .alert("Error", isPresented: .constant(errorMessage != nil)) {
-            Button("OK") { errorMessage = nil }
+            if let retry = retryAction {
+                Button("Retry") {
+                    errorMessage = nil
+                    let action = retry
+                    retryAction = nil
+                    Task { await action() }
+                }
+                Button("Dismiss", role: .cancel) {
+                    errorMessage = nil
+                    retryAction = nil
+                }
+            } else {
+                Button("OK") { errorMessage = nil }
+            }
         } message: {
             Text(errorMessage ?? "")
         }
@@ -504,6 +518,7 @@ struct ContentView: View {
             deviceId = response.deviceId
         } catch {
             errorMessage = error.localizedDescription
+            retryAction = { await registerDevice() }
         }
     }
 
@@ -543,6 +558,7 @@ struct ContentView: View {
             sessionExpired = false
         } catch {
             errorMessage = error.localizedDescription
+            retryAction = { await startSession() }
         }
     }
 
@@ -597,6 +613,7 @@ struct ContentView: View {
         } catch {
             isExchangingToken = false
             errorMessage = error.localizedDescription
+            retryAction = { await capturePhoto() }
         }
     }
 
