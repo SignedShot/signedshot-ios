@@ -101,27 +101,30 @@ public enum SignedShotAPIError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "Invalid API URL"
-        case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
-        case .httpError(let statusCode, let message):
-            return "HTTP error \(statusCode): \(message ?? "Unknown error")"
-        case .decodingError(let error):
-            return "Failed to decode response: \(error.localizedDescription)"
+            return "Unable to connect to the server. Please try again later."
+        case .networkError:
+            return "No internet connection. Check your network and try again."
+        case .httpError(let statusCode, _):
+            if statusCode >= 500 {
+                return "The server is temporarily unavailable. Please try again later."
+            }
+            return "Something went wrong. Please try again."
+        case .decodingError:
+            return "Received an unexpected response from the server. Please try again."
         case .deviceAlreadyRegistered:
-            return "Device is already registered"
+            return "This device is already registered."
         case .invalidPublisherId:
-            return "Invalid publisher ID format"
+            return "Configuration error. Please reinstall the app."
         case .unauthorized:
-            return "Unauthorized - invalid or expired token"
+            return "Your device session has expired. Please register again."
         case .notFound:
-            return "Resource not found"
+            return "The requested resource was not found."
         case .deviceNotRegistered:
-            return "Device must be registered before creating capture sessions"
+            return "Please register your device first."
         case .invalidNonce:
-            return "Invalid or already used nonce"
+            return "This capture session has already been used. Please start a new session."
         case .sessionExpired:
-            return "Capture session has expired"
+            return "Your capture session has expired. Please start a new one."
         }
     }
 }
