@@ -31,7 +31,7 @@ public enum CaptureError: Error, LocalizedError {
         case .cameraUnavailable:
             return "Camera is not available"
         case .permissionDenied:
-            return "Camera permission was denied"
+            return "Camera access is required. Please enable it in Settings > Privacy > Camera."
         case .captureInProgress:
             return "A capture is already in progress"
         case .captureFailed(let reason):
