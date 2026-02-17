@@ -123,13 +123,10 @@ public actor SignedShotClient {
         return newId
     }
 
-    private func performRegistration(
+    private func buildRegistrationRequest(
         externalId: String,
-        attestationToken: String? = nil,
-        isRetry: Bool
-    ) async throws -> DeviceCreateResponse {
-        SignedShotLogger.api.info("Registering device with externalId: \(externalId.prefix(8))...")
-
+        attestationToken: String?
+    ) throws -> URLRequest {
         let url = configuration.baseURL.appendingPathComponent("devices")
         SignedShotLogger.api.debug("POST \(url.absoluteString)")
 
@@ -138,7 +135,6 @@ public actor SignedShotClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(configuration.publisherId, forHTTPHeaderField: "X-Publisher-ID")
 
-        // Add attestation token header if provided
         if let token = attestationToken {
             request.setValue(token, forHTTPHeaderField: "X-Attestation-Token")
             SignedShotLogger.api.debug("Including attestation token in request")
@@ -147,6 +143,17 @@ public actor SignedShotClient {
         let publicKeyBase64 = try enclaveService.getPublicKeyBase64()
         let body = DeviceCreateRequest(externalId: externalId, publicKey: publicKeyBase64)
         request.httpBody = try encoder.encode(body)
+        return request
+    }
+
+    private func performRegistration(
+        externalId: String,
+        attestationToken: String? = nil,
+        isRetry: Bool
+    ) async throws -> DeviceCreateResponse {
+        SignedShotLogger.api.info("Registering device with externalId: \(externalId.prefix(8))...")
+
+        let request = try buildRegistrationRequest(externalId: externalId, attestationToken: attestationToken)
 
         let (data, response) = try await performRequest(request)
 
