@@ -6,24 +6,26 @@ final class APIModelsTests: XCTestCase {
     // MARK: - DeviceCreateRequest Tests
 
     func testDeviceCreateRequestEncoding() throws {
-        let request = DeviceCreateRequest(externalId: "test-device-123")
+        let request = DeviceCreateRequest(externalId: "test-device-123", publicKey: "dGVzdHB1YmxpY2tleQ==")
 
         let encoder = JSONEncoder()
         let data = try encoder.encode(request)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
         XCTAssertEqual(json?["external_id"] as? String, "test-device-123")
+        XCTAssertEqual(json?["public_key"] as? String, "dGVzdHB1YmxpY2tleQ==")
     }
 
     func testDeviceCreateRequestDecoding() throws {
         let json = """
-        {"external_id": "my-device-id"}
+        {"external_id": "my-device-id", "public_key": "dGVzdHB1YmxpY2tleQ=="}
         """
 
         let decoder = JSONDecoder()
         let request = try decoder.decode(DeviceCreateRequest.self, from: json.data(using: .utf8)!)
 
         XCTAssertEqual(request.externalId, "my-device-id")
+        XCTAssertEqual(request.publicKey, "dGVzdHB1YmxpY2tleQ==")
     }
 
     // MARK: - DeviceCreateResponse Tests
