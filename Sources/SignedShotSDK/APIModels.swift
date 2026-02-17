@@ -7,12 +7,18 @@ public struct DeviceCreateRequest: Codable, Sendable {
     /// Unique identifier for the device (e.g., hardware ID, app installation ID)
     public let externalId: String
 
-    public init(externalId: String) {
+    /// Base64-encoded uncompressed EC public key (65 bytes: 0x04 + X + Y)
+    /// from the device's content-signing key pair (Secure Enclave)
+    public let publicKey: String
+
+    public init(externalId: String, publicKey: String) {
         self.externalId = externalId
+        self.publicKey = publicKey
     }
 
     private enum CodingKeys: String, CodingKey {
         case externalId = "external_id"
+        case publicKey = "public_key"
     }
 }
 

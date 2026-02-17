@@ -66,7 +66,7 @@ struct ContentView: View {
             publisherId: "8f6b5d94-af3b-4f57-be68-e93eedd772fc"
         )!
         #endif
-        client = SignedShotClient(configuration: config)
+        client = SignedShotClient(configuration: config, enclaveService: enclaveService)
         integrityService = MediaIntegrityService(enclaveService: enclaveService)
     }
 

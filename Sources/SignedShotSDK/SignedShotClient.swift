@@ -38,6 +38,7 @@ public actor SignedShotClient {
     private let configuration: SignedShotConfiguration
     private let session: URLSession
     private let keychain: KeychainStorage
+    private let enclaveService: SecureEnclaveService
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
@@ -52,9 +53,15 @@ public actor SignedShotClient {
     /// - Parameters:
     ///   - configuration: Client configuration
     ///   - keychain: Keychain storage (defaults to standard)
-    public init(configuration: SignedShotConfiguration, keychain: KeychainStorage = KeychainStorage()) {
+    ///   - enclaveService: Secure Enclave service for key management (defaults to standard)
+    public init(
+        configuration: SignedShotConfiguration,
+        keychain: KeychainStorage = KeychainStorage(),
+        enclaveService: SecureEnclaveService = SecureEnclaveService()
+    ) {
         self.configuration = configuration
         self.keychain = keychain
+        self.enclaveService = enclaveService
         self.session = URLSession.shared
 
         self.decoder = JSONDecoder()
@@ -137,7 +144,8 @@ public actor SignedShotClient {
             SignedShotLogger.api.debug("Including attestation token in request")
         }
 
-        let body = DeviceCreateRequest(externalId: externalId)
+        let publicKeyBase64 = try enclaveService.getPublicKeyBase64()
+        let body = DeviceCreateRequest(externalId: externalId, publicKey: publicKeyBase64)
         request.httpBody = try encoder.encode(body)
 
         let (data, response) = try await performRequest(request)
